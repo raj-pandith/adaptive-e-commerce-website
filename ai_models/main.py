@@ -36,6 +36,14 @@ async def startup_event():
     else:
         print("❌ Recommender model not found! You need to train it in Colab again.")
 
+        # Replace get_db_connection() with this
+
+def get_db_engine():
+    # Adjust username, password, db name
+        return create_engine(
+            "mysql+pymysql://root:mysql@localhost/adaptive_ecom?charset=utf8mb4"
+        )
+
 # Recommendation endpoint
 @app.get("/recommend")
 def recommend(user_id: int, n: int = 6):
