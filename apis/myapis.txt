@@ -1,3 +1,12 @@
 http://127.0.0.1:8000/price?user_id=3&product_id=1
 
 http://127.0.0.1:8000/recommend?user_id=3&n=7
+
+
+open anaconda prompt
+
+cd C:\Users\rajpa\OneDrive\Desktop\adaptive-e-commerce-website\ai_models
+
+conda activate ecom-ai
+
+uvicorn main:app --reload
