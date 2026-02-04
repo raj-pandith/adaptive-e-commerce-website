@@ -6,6 +6,15 @@ public class RecommendationResponse {
     private Long userId;
     private List<Long> recommendedProductIds;
     private String message;
+    private Long basedOnProductId;
+
+    public Long getBasedOnProductId() {
+        return basedOnProductId;
+    }
+
+    public void setBasedOnProductId(Long basedOnProductId) {
+        this.basedOnProductId = basedOnProductId;
+    }
 
     // Getters + Setters (or use Lombok @Data / @Getter @Setter)
     public Long getUserId() {

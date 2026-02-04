@@ -60,4 +60,32 @@ public class ProductController {
         List<Long> recIds = aiService.getRecommendedProductIds(userId, limit);
         return ResponseEntity.ok(recIds);
     }
+
+    @GetMapping("/products/{id}/similar")
+    public List<ProductDTO> getSimilarProducts(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "123") Long userId,
+            @RequestParam(defaultValue = "6") int limit) {
+
+        List<Long> similarIds = aiService.getSimilarProductIds(id, limit);
+
+        if (similarIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Product> similarProducts = productRepository.findAllById(similarIds);
+
+        return similarProducts.stream().map(p -> {
+            PriceResponse priceInfo = aiService.getPersonalizedPrice(userId, p.getId());
+
+            return new ProductDTO(
+                    p.getId(),
+                    p.getName(),
+                    p.getBasePrice(),
+                    BigDecimal.valueOf(priceInfo.getSuggestedPrice()),
+                    priceInfo.getDiscountPercent(),
+                    priceInfo.getReason());
+        }).collect(Collectors.toList());
+    }
+
 }

@@ -1,120 +1,200 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import pandas as pd
 import numpy as np
 import joblib
 import os
-import pymysql
 from sqlalchemy import create_engine, text
+from sentence_transformers import SentenceTransformer
+from decimal import Decimal
 
 app = FastAPI(title="AI Pricing & Recs Demo")
 
+# ====================
+# CONFIG & GLOBALS
+# ====================
 MODELS_DIR = "models"
 PRICING_MODEL_PATH = os.path.join(MODELS_DIR, "pricing_model.joblib")
+RECOMMENDER_MODEL_PATH = os.path.join(MODELS_DIR, "recommender_model.joblib")
 
 pricing_info = None
-
-# Global variable for the recommender model
 recommender = None
+embedder = None
+PRODUCT_EMBEDDINGS = {}
 
+# ====================
+# DATABASE CONNECTION
+# ====================
+def get_db_engine():
+    return create_engine(
+        "mysql+pymysql://root:mysql@localhost/adaptive_ecom?charset=utf8mb4",
+        pool_pre_ping=True
+    )
+
+# ====================
+# STARTUP EVENT
+# ====================
 @app.on_event("startup")
 async def startup_event():
-    global pricing_info, recommender
-    
-    # Load pricing model (already there)
+    global pricing_info, recommender, embedder, PRODUCT_EMBEDDINGS
+
+    print("\n=== Application Startup Started ===")
+
+    # ---- Pricing model
     if os.path.exists(PRICING_MODEL_PATH):
         pricing_info = joblib.load(PRICING_MODEL_PATH)
-        print("✅ Pricing model loaded!")
+        print("✅ Pricing model loaded")
     else:
-        print("❌ Pricing model not found!")
+        print("⚠️ Pricing model not found")
 
-    # Load recommendation model
-    RECOMMENDER_MODEL_PATH = os.path.join(MODELS_DIR, "recommender_model.joblib")
+    # ---- Recommender model
     if os.path.exists(RECOMMENDER_MODEL_PATH):
         recommender = joblib.load(RECOMMENDER_MODEL_PATH)
-        print("✅ Recommender (SVD) model loaded!")
+        print("✅ Recommender model loaded")
     else:
-        print("❌ Recommender model not found! You need to train it in Colab again.")
+        print("⚠️ Recommender model not found")
 
-        # Replace get_db_connection() with this
+    # ---- Embedding model
+    try:
+        embedder = SentenceTransformer("all-MiniLM-L6-v2")
+        print("✅ SentenceTransformer loaded")
+    except Exception as e:
+        print(f"❌ Embedding model load failed: {e}")
+        embedder = None
 
-def get_db_engine():
-    # Adjust username, password, db name
-        return create_engine(
-            "mysql+pymysql://root:mysql@localhost/adaptive_ecom?charset=utf8mb4"
-        )
+    # ---- Build embeddings
+    PRODUCT_EMBEDDINGS = {}
 
-# Recommendation endpoint
+    if embedder is None:
+        print("⚠️ Skipping embeddings (no embedder)")
+        return
+
+    try:
+        engine = get_db_engine()
+        print("Connecting to database...")
+
+        with engine.connect() as conn:
+            rows = conn.execute(
+                text("SELECT id, name, description FROM products")
+            ).fetchall()
+
+        print(f"Found {len(rows)} products")
+
+        for idx, row in enumerate(rows, 1):
+            pid = None
+            product_text = ""
+
+            try:
+                pid = int(row[0])
+                name = row[1] or ""
+                desc = row[2] or ""
+
+                product_text = f"{name} {desc}".strip()
+                if not product_text:
+                    continue
+
+                emb = embedder.encode(product_text)
+                PRODUCT_EMBEDDINGS[pid] = emb.tolist()
+
+                print(f"  ✔ Embedded product {pid}")
+
+            except Exception as row_err:
+                print(
+                    f"  ❌ Row {idx} failed | id={pid} | "
+                    f"text='{product_text[:40]}' | err={row_err}"
+                )
+
+        print(f"✅ Created embeddings for {len(PRODUCT_EMBEDDINGS)} products")
+
+    except Exception as e:
+        print(f"❌ Embedding build failed: {e}")
+        PRODUCT_EMBEDDINGS = {}
+
+    print("=== Application Startup Completed ===\n")
+
+# ====================
+# USER-BASED RECOMMENDATION
+# ====================
 @app.get("/recommend")
 def recommend(user_id: int, n: int = 6):
     if recommender is None:
-        return {"error": "Recommender model not loaded. Train and save it in Colab first."}
+        raise HTTPException(500, "Recommender model not loaded")
 
-    predictions = []
-    # Assuming products are numbered 1 to 25 (from your Colab training)
-    for pid in range(1, 26):
-        pred = recommender.predict(user_id, pid)
-        predictions.append((pid, pred.est))
+    preds = [
+        (pid, recommender.predict(user_id, pid).est)
+        for pid in range(1, 26)
+    ]
 
-    # Sort by predicted rating (highest first)
-    top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[:n]
-    recommended_ids = [pid for pid, _ in top_n]
+    top_n = sorted(preds, key=lambda x: x[1], reverse=True)[:n]
 
     return {
         "user_id": user_id,
-        "recommended_product_ids": recommended_ids,
-        "message": f"Top {n} predicted products for user {user_id}"
+        "recommended_product_ids": [pid for pid, _ in top_n]
     }
 
+# ====================
+# PERSONALIZED PRICING
+# ====================
 @app.get("/price")
 def get_price(user_id: int, product_id: int):
-    print(f"DEBUG: Calculating price for user={user_id}, product={product_id}")
-
     engine = get_db_engine()
 
     try:
         with engine.connect() as conn:
-            # User loyalty
-            user_query = text("SELECT loyalty_points FROM users WHERE id = :uid")
-            user_result = conn.execute(user_query, {"uid": user_id})
-            user_row = user_result.fetchone()
+            # Get user loyalty points
+            user_row = conn.execute(
+                text("SELECT loyalty_points FROM users WHERE id=:uid"),
+                {"uid": user_id}
+            ).fetchone()
 
-            if user_row is None:
-                raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+            if not user_row:
+                raise HTTPException(404, "User not found")
 
-            loyalty_points = int(user_row[0])  
+            loyalty_points = int(user_row[0])
 
-            product_query = text("""
-                SELECT base_price, sales_count, category 
-                FROM products 
-                WHERE id = :pid
-            """)
-            product_result = conn.execute(product_query, {"pid": product_id})
-            product_row = product_result.fetchone()
+            # Get product details
+            product_row = conn.execute(
+                text("""
+                    SELECT base_price, sales_count, category
+                    FROM products WHERE id=:pid
+                """),
+                {"pid": product_id}
+            ).fetchone()
 
-            if product_row is None:
-                raise HTTPException(status_code=404, detail=f"Product {product_id} not found")
+            if not product_row:
+                raise HTTPException(404, "Product not found")
 
-            base_price   = float(product_row[0])
-            sales_count  = int(product_row[1])
-            category     = product_row[2]
+        # Safe extraction & type conversion
+        base_price_raw, sales_count_raw, category_raw = product_row
+
+        base_price = float(base_price_raw) if base_price_raw is not None else 0.0
+        sales_count = int(sales_count_raw) if sales_count_raw is not None else 0
+        category = str(category_raw) if category_raw is not None else "Unknown"
 
         if pricing_info is None:
             return {
-                "suggested_price": base_price,
+                "suggested_price": round(base_price, 2),
                 "discount_percent": 0.0,
-                "reason": "Model not loaded - full price"
+                "reason": "Pricing model not loaded - showing full price"
             }
 
-        model = pricing_info['model']
-        encoder = pricing_info['encoder']
+        model = pricing_info["model"]
+        encoder = pricing_info["encoder"]
 
-        category_encoded = encoder.transform([category])[0] if category in encoder.classes_ else 0
-        features = np.array([[loyalty_points, sales_count, category_encoded]])
+        # Encode category safely
+        cat_encoded = (
+            encoder.transform([category])[0]
+            if category in encoder.classes_
+            else 0
+        )
 
-        discount_frac = model.predict(features)[0]
-        discount_percent = min(max(discount_frac * 100, 0), 35)
+        # Prepare features for prediction
+        X = np.array([[loyalty_points, sales_count, cat_encoded]], dtype=float)
 
+        # Predict discount fraction → convert to percent
+        discount_frac = model.predict(X)[0]
+        discount_percent = min(max(float(discount_frac) * 100, 0), 35)
+
+        # Calculate final price (now safe: both are float)
         suggested_price = base_price * (1 - discount_percent / 100)
 
         return {
@@ -123,6 +203,35 @@ def get_price(user_id: int, product_id: int):
             "reason": f"Based on loyalty {loyalty_points} pts + demand {sales_count} sales"
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error in /price: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Error in /price endpoint: {e}")
+        raise HTTPException(500, str(e))
+
+# ====================
+# CONTENT-BASED SIMILAR PRODUCTS
+# ====================
+@app.get("/recommend-similar")
+def recommend_similar(product_id: int, n: int = 6):
+    if product_id not in PRODUCT_EMBEDDINGS:
+        raise HTTPException(404, "Product not found or embeddings missing")
+
+    query = np.array(PRODUCT_EMBEDDINGS[product_id])
+    sims = []
+
+    for pid, emb in PRODUCT_EMBEDDINGS.items():
+        if pid == product_id:
+            continue
+        emb = np.array(emb)
+        sim = np.dot(query, emb) / (
+            np.linalg.norm(query) * np.linalg.norm(emb) + 1e-8
+        )
+        sims.append((pid, sim))
+
+    top_n = sorted(sims, key=lambda x: x[1], reverse=True)[:n]
+
+    return {
+        "based_on_product": product_id,
+        "recommended_product_ids": [pid for pid, _ in top_n]
+    }

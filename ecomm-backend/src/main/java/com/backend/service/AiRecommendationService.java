@@ -40,7 +40,6 @@ public class AiRecommendationService {
         return List.of();
     }
 
-
     public PriceResponse getPersonalizedPrice(Long userId, Long productId) {
         String url = PYTHON_BASE_URL
                 + "/price?user_id=" + userId
@@ -63,4 +62,21 @@ public class AiRecommendationService {
         fallback.setReason("Fallback - AI service unavailable");
         return fallback;
     }
+
+    public List<Long> getSimilarProductIds(Long productId, int limit) {
+        String url = PYTHON_BASE_URL + "/recommend-similar?product_id=" + productId + "&n=" + limit;
+
+        try {
+            ResponseEntity<RecommendationResponse> response = restTemplate.getForEntity(url,
+                    RecommendationResponse.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return response.getBody().getRecommendedProductIds();
+            }
+        } catch (Exception e) {
+            System.err.println("Error calling similar: " + e.getMessage());
+        }
+        return List.of();
+    }
+
 }
