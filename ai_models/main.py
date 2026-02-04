@@ -134,13 +134,13 @@ def recommend(user_id: int, n: int = 6):
 # ====================
 # PERSONALIZED PRICING
 # ====================
+
 @app.get("/price")
 def get_price(user_id: int, product_id: int):
     engine = get_db_engine()
 
     try:
         with engine.connect() as conn:
-            # Get user loyalty points
             user_row = conn.execute(
                 text("SELECT loyalty_points FROM users WHERE id=:uid"),
                 {"uid": user_id}
@@ -151,7 +151,6 @@ def get_price(user_id: int, product_id: int):
 
             loyalty_points = int(user_row[0])
 
-            # Get product details
             product_row = conn.execute(
                 text("""
                     SELECT base_price, sales_count, category
@@ -163,7 +162,6 @@ def get_price(user_id: int, product_id: int):
             if not product_row:
                 raise HTTPException(404, "Product not found")
 
-        # Safe extraction & type conversion
         base_price_raw, sales_count_raw, category_raw = product_row
 
         base_price = float(base_price_raw) if base_price_raw is not None else 0.0
@@ -180,22 +178,33 @@ def get_price(user_id: int, product_id: int):
         model = pricing_info["model"]
         encoder = pricing_info["encoder"]
 
-        # Encode category safely
         cat_encoded = (
             encoder.transform([category])[0]
             if category in encoder.classes_
             else 0
         )
 
-        # Prepare features for prediction
         X = np.array([[loyalty_points, sales_count, cat_encoded]], dtype=float)
 
-        # Predict discount fraction → convert to percent
         discount_frac = model.predict(X)[0]
         discount_percent = min(max(float(discount_frac) * 100, 0), 35)
 
-        # Calculate final price (now safe: both are float)
+        # Force minimum discount based on loyalty (guaranteed non-zero for demo)
+        min_discount = loyalty_points / 100.0  # e.g. 200 → 2.0%
+        discount_percent = max(discount_percent, min_discount)
+
         suggested_price = base_price * (1 - discount_percent / 100)
+
+        # Full debug prints
+        print(f"DEBUG - User {user_id}: loyalty_points = {loyalty_points}")
+        print(f"DEBUG - Product {product_id}: base_price = {base_price}, sales_count = {sales_count}, category = '{category}'")
+        print(f"DEBUG - Category encoded = {cat_encoded}")
+        print(f"DEBUG - Features sent to model: {X.tolist()}")
+        print(f"DEBUG - Raw discount_frac from model: {discount_frac:.6f}")
+        print(f"DEBUG - Discount after model clipping: {discount_percent:.2f}%")
+        print(f"DEBUG - Forced min discount from loyalty: {min_discount:.2f}%")
+        print(f"DEBUG - Final discount_percent used: {discount_percent:.2f}%")
+        print(f"DEBUG - Calculated suggested_price: {suggested_price:.2f}")
 
         return {
             "suggested_price": round(suggested_price, 2),

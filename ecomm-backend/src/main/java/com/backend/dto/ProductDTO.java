@@ -3,8 +3,10 @@ package com.backend.dto;
 import java.math.BigDecimal;
 
 import lombok.Builder;
+import lombok.Data;
 
 @Builder
+@Data
 public class ProductDTO {
     private Long id;
     private String name;

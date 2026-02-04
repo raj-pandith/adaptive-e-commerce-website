@@ -2,30 +2,28 @@ package com.backend.dto;
 
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import lombok.Data;
+import lombok.ToString;
 
 @Data
-public class RecommendationResponse {
-    private Long userId;
-    private List<Long> recommendedProductIds;
-    private String message;
+@ToString
+public class SimilarProductsResponse {
+    @JsonProperty("based_on_product")
     private Long basedOnProductId;
+    @JsonProperty("recommended_product_ids")
+    private List<Long> recommendedProductIds;
+    @JsonProperty("reason")
+    private String message;
 
+    // Getters & setters (or use Lombok @Data)
     public Long getBasedOnProductId() {
         return basedOnProductId;
     }
 
     public void setBasedOnProductId(Long basedOnProductId) {
         this.basedOnProductId = basedOnProductId;
-    }
-
-    // Getters + Setters (or use Lombok @Data / @Getter @Setter)
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
     }
 
     public List<Long> getRecommendedProductIds() {

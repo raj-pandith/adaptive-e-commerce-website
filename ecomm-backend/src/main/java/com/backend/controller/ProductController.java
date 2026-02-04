@@ -13,6 +13,8 @@ import com.backend.service.AiRecommendationService;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RestController
@@ -62,30 +64,43 @@ public class ProductController {
     }
 
     @GetMapping("/products/{id}/similar")
-    public List<ProductDTO> getSimilarProducts(
+    public ResponseEntity<List<ProductDTO>> getSimilarProducts(
             @PathVariable Long id,
-            @RequestParam(defaultValue = "123") Long userId,
+            @RequestParam(defaultValue = "1") Long userId, // default user for demo
             @RequestParam(defaultValue = "6") int limit) {
 
-        List<Long> similarIds = aiService.getSimilarProductIds(id, limit);
+        // Step 1: Get ordered list of similar product IDs from Python
+        List<Long> orderedIds = aiService.getSimilarProductIds(id, limit);
 
-        if (similarIds.isEmpty()) {
-            return List.of();
+        if (orderedIds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
         }
 
-        List<Product> similarProducts = productRepository.findAllById(similarIds);
+        // Step 2: Fetch products (order doesn't matter here)
+        List<Product> products = productRepository.findAllById(orderedIds);
 
-        return similarProducts.stream().map(p -> {
-            PriceResponse priceInfo = aiService.getPersonalizedPrice(userId, p.getId());
+        // Step 3: Create map: product ID → Product object
+        Map<Long, Product> productMap = products.stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
 
-            return new ProductDTO(
-                    p.getId(),
-                    p.getName(),
-                    p.getBasePrice(),
-                    BigDecimal.valueOf(priceInfo.getSuggestedPrice()),
-                    priceInfo.getDiscountPercent(),
-                    priceInfo.getReason());
-        }).collect(Collectors.toList());
+        // Step 4: Rebuild the list in the exact order returned by Python
+        List<ProductDTO> dtos = orderedIds.stream()
+                .filter(productMap::containsKey) // skip if product not found (rare)
+                .map(pid -> {
+                    Product product = productMap.get(pid);
+                    PriceResponse priceInfo = aiService.getPersonalizedPrice(userId, product.getId());
+
+                    return new ProductDTO(
+                            product.getId(),
+                            product.getName(),
+                            product.getBasePrice(),
+                            BigDecimal.valueOf(priceInfo.getSuggestedPrice()),
+                            priceInfo.getDiscountPercent(),
+                            priceInfo.getReason());
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(dtos);
     }
 
 }
