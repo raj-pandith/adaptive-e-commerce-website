@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.*;
 
 import com.backend.dto.PriceResponse;
 import com.backend.dto.ProductDTO;
+import com.backend.dto.SearchResponse;
+import com.backend.dto.SearchResultDTO;
 import com.backend.model.Product;
 import com.backend.model.User;
 import com.backend.repo.ProductRepository;
@@ -101,6 +103,56 @@ public class ProductController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(dtos);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<SearchResultDTO>> searchProducts(
+            @RequestParam String query,
+            @RequestParam(defaultValue = "6") int limit,
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        if (query == null || query.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(List.of());
+        }
+
+        // Get list of similar product IDs from Python semantic search
+        List<SearchResponse.SearchResultItem> searchResults = aiService.searchProducts(query, limit);
+
+        if (searchResults.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        // Extract product IDs (preserving order from similarity)
+        List<Long> orderedIds = searchResults.stream()
+                .map(SearchResponse.SearchResultItem::getProductId)
+                .collect(Collectors.toList());
+
+        // Fetch full products from DB
+        List<Product> products = productRepository.findAllById(orderedIds);
+
+        // Map ID → Product for re-ordering
+        Map<Long, Product> productMap = products.stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
+        // Rebuild response in Python's similarity order, with personalized prices
+        List<SearchResultDTO> result = orderedIds.stream()
+                .filter(productMap::containsKey)
+                .map(pid -> {
+                    Product p = productMap.get(pid);
+                    PriceResponse priceInfo = aiService.getPersonalizedPrice(userId, p.getId());
+
+                    SearchResultDTO dto = new SearchResultDTO();
+                    dto.setId(p.getId());
+                    dto.setName(p.getName());
+                    dto.setOriginalPrice(p.getBasePrice());
+                    dto.setSuggestedPrice(BigDecimal.valueOf(priceInfo.getSuggestedPrice()));
+                    dto.setDiscountPercent(priceInfo.getDiscountPercent());
+                    dto.setReason(priceInfo.getReason());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
     }
 
 }

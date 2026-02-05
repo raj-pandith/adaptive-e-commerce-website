@@ -244,3 +244,51 @@ def recommend_similar(product_id: int, n: int = 6):
         "based_on_product": product_id,
         "recommended_product_ids": [pid for pid, _ in top_n]
     }
+
+
+
+
+@app.get("/search")
+def search_products(query: str, n: int = 6):
+    if not query or not query.strip():
+        return {"error": "Query cannot be empty"}
+
+    if PRODUCT_EMBEDDINGS is None or len(PRODUCT_EMBEDDINGS) == 0:
+        return {"error": "No product embeddings loaded. Run /embed-products first or check startup logs."}
+
+    try:
+        # Encode the search query
+        query_text = query.strip()
+        query_embedding = embedder.encode(query_text)
+
+        # Calculate similarity with all products
+        similarities = []
+        for pid, emb in PRODUCT_EMBEDDINGS.items():
+            emb_array = np.array(emb)
+            sim = np.dot(query_embedding, emb_array) / (
+                np.linalg.norm(query_embedding) * np.linalg.norm(emb_array) + 1e-8
+            )
+            similarities.append((pid, float(sim)))
+
+        # Sort by similarity score (highest first)
+        similarities.sort(key=lambda x: x[1], reverse=True)
+
+        # Take top N
+        top_n = similarities[:n]
+
+        return {
+            "query": query_text,
+            "results": [
+                {
+                    "product_id": pid,
+                    "similarity_score": round(score, 4)
+                }
+                for pid, score in top_n
+            ],
+            "total_results": len(top_n),
+            "message": f"Top {len(top_n)} semantically similar products for '{query_text}'"
+        }
+
+    except Exception as e:
+        print(f"Search error: {e}")
+        return {"error": str(e)}

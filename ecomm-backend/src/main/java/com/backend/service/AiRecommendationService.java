@@ -7,8 +7,11 @@ import org.springframework.web.client.RestTemplate;
 
 import com.backend.dto.PriceResponse;
 import com.backend.dto.RecommendationResponse;
+import com.backend.dto.SearchResponse;
 import com.backend.dto.SimilarProductsResponse;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Service
@@ -119,6 +122,23 @@ public class AiRecommendationService {
         }
 
         // Fallback: empty list or popular products
+        return List.of();
+    }
+
+    public List<SearchResponse.SearchResultItem> searchProducts(String query, int limit) {
+        String url = PYTHON_BASE_URL + "/search?query=" + URLEncoder.encode(query, StandardCharsets.UTF_8) + "&n="
+                + limit;
+
+        try {
+            ResponseEntity<SearchResponse> response = restTemplate.getForEntity(url, SearchResponse.class);
+            System.out.println(response);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return response.getBody().getResults();
+            }
+        } catch (Exception e) {
+            System.err.println("Error calling /search: " + e.getMessage());
+            e.printStackTrace();
+        }
         return List.of();
     }
 
