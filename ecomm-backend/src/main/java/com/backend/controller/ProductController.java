@@ -65,6 +65,27 @@ public class ProductController {
         return ResponseEntity.ok(recIds);
     }
 
+    @GetMapping("/products/{id}")
+    public ResponseEntity<ProductDTO> getProductById(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "1") Long userId) {
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+
+        PriceResponse priceInfo = aiService.getPersonalizedPrice(userId, product.getId());
+
+        ProductDTO dto = new ProductDTO(
+                product.getId(),
+                product.getName(),
+                product.getBasePrice(),
+                BigDecimal.valueOf(priceInfo.getSuggestedPrice()),
+                priceInfo.getDiscountPercent(),
+                priceInfo.getReason());
+
+        return ResponseEntity.ok(dto);
+    }
+
     @GetMapping("/products/{id}/similar")
     public ResponseEntity<List<ProductDTO>> getSimilarProducts(
             @PathVariable Long id,

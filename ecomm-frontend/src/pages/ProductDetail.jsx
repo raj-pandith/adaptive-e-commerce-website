@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from '../components/ProductCard';
 import { useCart } from '../context/CartContext';
 
 export default function ProductDetail() {
-    const { id } = useParams(); // product ID from URL
-    const userId = 1; // fake user (later from real login)
+    const { id } = useParams(); // This changes when clicking a similar product → triggers re-fetch
+    const userId = 1; // Change to real user ID later (from auth context)
     const { addToCart } = useCart();
     const [product, setProduct] = useState(null);
     const [similar, setSimilar] = useState([]);
@@ -14,42 +14,61 @@ export default function ProductDetail() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Fetch the main product
-        axios.get(`http://localhost:8080/api/products?userId=${userId}`)
+        // Reset state when ID changes
+        setLoading(true);
+        setError(null);
+        setProduct(null);
+        setSimilar([]);
+
+        // 1. Fetch the current product's details
+        axios.get(`http://localhost:8080/api/products/${id}?userId=${userId}`)
             .then(res => {
-                const found = res.data.find(p => p.id === Number(id));
-                if (found) {
-                    setProduct(found);
-                } else {
-                    setError('Product not found');
-                }
+                setProduct(res.data);
             })
             .catch(err => {
-                console.error(err);
-                setError('Failed to load product');
+                console.error('Product fetch error:', err);
+                setError('Failed to load this product');
             });
 
-        // Fetch similar products
+        // 2. Fetch similar products for this ID
         axios.get(`http://localhost:8080/api/products/${id}/similar?userId=${userId}&limit=6`)
-            .then(res => setSimilar(res.data))
-            .catch(err => console.error('Similar error:', err))
+            .then(res => {
+                setSimilar(res.data);
+            })
+            .catch(err => {
+                console.error('Similar fetch error:', err);
+            })
             .finally(() => setLoading(false));
-    }, [id]);
 
-    if (loading) return <div className="text-center py-20 text-xl">Loading...</div>;
-    if (error) return <div className="text-center py-20 text-red-600 text-xl">{error}</div>;
-    if (!product) return <div className="text-center py-20 text-gray-600">Product not found</div>;
+    }, [id, userId]); // ← IMPORTANT: id is in dependency array → re-runs on every ID change
+
+    if (loading) {
+        return <div className="text-center py-20 text-xl">Loading product details...</div>;
+    }
+
+    if (error) {
+        return <div className="text-center py-20 text-red-600 text-xl">{error}</div>;
+    }
+
+    if (!product) {
+        return <div className="text-center py-20 text-gray-600">Product not found</div>;
+    }
 
     return (
         <div className="max-w-6xl mx-auto px-4 py-8">
+            {/* Back button */}
+            <Link to="/" className="inline-flex items-center text-indigo-600 hover:text-indigo-800 mb-6">
+                ← Back to Home
+            </Link>
+
             {/* Main Product */}
             <div className="grid md:grid-cols-2 gap-12 mb-16">
-                {/* Image placeholder */}
-                <div className="bg-gray-100 aspect-square rounded-xl flex items-center justify-center">
+                {/* Image */}
+                <div className="bg-gray-100 rounded-xl aspect-square flex items-center justify-center">
                     <span className="text-6xl text-gray-300">Product Image</span>
                 </div>
 
-                {/* Info */}
+                {/* Details */}
                 <div>
                     <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
 
@@ -74,8 +93,7 @@ export default function ProductDetail() {
 
                     <button
                         onClick={() => addToCart(product)}
-                        className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-semibold hover:bg-indigo-700 transition w-full md:w-auto"
-                    >
+                        className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-semibold hover:bg-indigo-700 transition w-full md:w-auto">
                         Add to Cart
                     </button>
                 </div>
