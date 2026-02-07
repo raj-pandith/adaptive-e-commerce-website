@@ -18,6 +18,7 @@ export default function ProductDetail() {
         setLoading(true);
         setError(null);
         setProduct(null);
+
         setSimilar([]);
 
         // 1. Fetch the current product's details
