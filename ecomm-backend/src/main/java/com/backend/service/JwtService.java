@@ -2,22 +2,22 @@ package com.backend.service;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.security.Key;
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Service
 public class JwtService {
 
-    private final Key key;
+    private final SecretKey key;
 
-    // Inject secret from config
+    // Inject secret from application.properties
     public JwtService(@Value("${jwt.secret}") String secret) {
-        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     // Generate JWT token (24 hours)
@@ -25,20 +25,21 @@ public class JwtService {
         long now = System.currentTimeMillis();
 
         return Jwts.builder()
-                .setSubject(username)
+                .subject(username)
                 .claim("userId", userId)
-                .setIssuedAt(new Date(now))
-                .setExpiration(new Date(now + 24 * 60 * 60 * 1000))
-                .signWith(key, SignatureAlgorithm.HS512)
+                .issuedAt(new Date(now))
+                .expiration(new Date(now + 24 * 60 * 60 * 1000))
+                .signWith(key) // ✅ algorithm inferred automatically
                 .compact();
     }
 
-    // Extract all claims
+    // Extract all claims (🔥 FIX HERE)
     public Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .setSigningKey(key)
-                .parseClaimsJws(token)
-                .getBody();
+                .verifyWith(key) // ✅ NEW
+                .build()
+                .parseSignedClaims(token) // ✅ NEW
+                .getPayload();
     }
 
     // Extract username

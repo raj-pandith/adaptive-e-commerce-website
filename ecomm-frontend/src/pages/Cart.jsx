@@ -1,13 +1,17 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import CheckoutForm from "./CheckoutForm";
 
 export default function Cart() {
-    const { cart, removeFromCart, updateQuantity } = useCart();
+    const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
+    const navigate = useNavigate();
 
     const total = cart.reduce((sum, item) => {
         const price = Number(item.suggestedPrice ?? item.originalPrice ?? 0);
         return sum + price * item.quantity;
     }, 0);
+
+
 
     if (cart.length === 0) {
         return (
@@ -116,9 +120,19 @@ export default function Cart() {
                     </span>
                 </div>
 
-                <button className="bg-green-600 text-white px-12 py-5 rounded-xl font-semibold text-lg hover:bg-green-700 transition w-full md:w-auto">
-                    Proceed to Checkout
-                </button>
+                <CheckoutForm
+                    amount={total}
+                    onSuccess={() => {
+                        setTimeout(() => {
+                            navigate("/payment-success", {
+                                state: {
+                                    orderId: "ORD-" + Date.now(),
+                                    amount: total
+                                }
+                            });
+                        }, 300); // 🔑 allow Stripe iframe cleanup
+                    }}
+                />
             </div>
         </div>
     );
