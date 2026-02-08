@@ -120,6 +120,7 @@ export default function Cart() {
                     </span>
                 </div>
 
+
                 <CheckoutForm
                     amount={total}
                     onSuccess={() => {
