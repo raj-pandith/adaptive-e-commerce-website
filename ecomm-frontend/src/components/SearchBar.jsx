@@ -90,7 +90,8 @@ export default function SearchBar() {
                                     }}
                                 >
                                     <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
-                                        <span className="text-xs text-gray-400">Img</span>
+                                        {/* <span className="text-xs text-gray-400">Img</span> */}
+                                        <img src={p.image} alt="" />
                                     </div>
 
                                     {/* <div>

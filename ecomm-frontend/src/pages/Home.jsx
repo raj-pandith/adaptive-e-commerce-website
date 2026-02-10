@@ -12,7 +12,7 @@ export default function Home() {
         // Use userId = 1 for testing (later use real user from login)
         const userId = 1;
 
-        axios.get(`http://localhost:8080/api/products?userId=${userId}&limit=5`)
+        axios.get(`http://localhost:8080/api/products?userId=${userId}&limit=8`)
             .then(response => {
                 setProducts(response.data);
                 setLoading(false);

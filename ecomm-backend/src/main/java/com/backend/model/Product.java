@@ -25,14 +25,18 @@ public class Product {
     @Column(name = "sales_count")
     private Integer salesCount = 0; // default 0
 
+    @Column(name = "image") // or "url" if renamed
+    private String image;
+
     // Constructors
     public Product() {
     }
 
-    public Product(String name, BigDecimal basePrice, String category, Integer salesCount) {
+    public Product(String name, BigDecimal basePrice, String category, Integer salesCount, String image) {
         this.name = name;
         this.basePrice = basePrice;
         this.category = category;
+        this.image = image;
         this.salesCount = salesCount != null ? salesCount : 0;
     }
 
@@ -43,6 +47,14 @@ public class Product {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getImage() {
+        return this.image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
     }
 
     public String getName() {

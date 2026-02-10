@@ -14,4 +14,5 @@ public class SearchResultDTO {
     private BigDecimal suggestedPrice;
     private double discountPercent;
     private String reason;
+    private String image;
 }

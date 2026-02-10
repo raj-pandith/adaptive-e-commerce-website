@@ -12,6 +12,15 @@ public class PriceResponse {
     @JsonProperty("discount_percent")
     private double discountPercent;
     private String reason;
+    private String image;
+
+    public String getImage() {
+        return this.image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
+    }
 
     // Getters + Setters
     public double getSuggestedPrice() {

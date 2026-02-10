@@ -48,7 +48,9 @@ export default function Cart() {
                         >
                             {/* Image */}
                             <div className="w-32 h-32 bg-gray-100 rounded flex items-center justify-center">
-                                <span className="text-gray-400">Image</span>
+                                {/* <span className="text-gray-400">Image</span>
+                                 */}
+                                <img src={item.image} alt="" />
                             </div>
 
                             {/* Details */}

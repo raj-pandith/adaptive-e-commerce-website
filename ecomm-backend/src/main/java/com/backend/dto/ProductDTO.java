@@ -14,20 +14,30 @@ public class ProductDTO {
     private BigDecimal suggestedPrice;
     private double discountPercent;
     private String reason;
+    private String image;
 
     // Constructor
     public ProductDTO(Long id, String name, BigDecimal originalPrice,
-            BigDecimal suggestedPrice, double discountPercent, String reason) {
+            BigDecimal suggestedPrice, double discountPercent, String reason, String image) {
         this.id = id;
         this.name = name;
         this.originalPrice = originalPrice;
         this.suggestedPrice = suggestedPrice;
         this.discountPercent = discountPercent;
         this.reason = reason;
+        this.image = image;
     }
 
     public ProductDTO() {
         // TODO Auto-generated constructor stub
+    }
+
+    public String getImage() {
+        return this.image;
+    }
+
+    public void setImage(String image) {
+        this.image = image;
     }
 
     // Getters (add setters if needed)
