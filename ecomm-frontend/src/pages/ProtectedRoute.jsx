@@ -1,0 +1,18 @@
+import { Navigate, Outlet } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+export default function ProtectedRoute() {
+    const { user, loading } = useAuth();
+
+    if (loading) {
+        return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    }
+
+    if (!user) {
+        // Not logged in → redirect to login
+        return <Navigate to="/login" replace />;
+    }
+
+    // Logged in → show the protected page
+    return <Outlet />;
+}

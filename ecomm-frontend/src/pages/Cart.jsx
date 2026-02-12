@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import CheckoutForm from "./CheckoutForm";
+import toast from "react-hot-toast";
 
 export default function Cart() {
     const { cart, removeFromCart, updateQuantity, clearCart } = useCart();
@@ -8,10 +9,8 @@ export default function Cart() {
 
     const total = cart.reduce((sum, item) => {
         const price = Number(item.suggestedPrice ?? item.originalPrice ?? 0);
-        return sum + price * item.quantity;
+        return sum + price * (item.quantity || 1);
     }, 0);
-
-
 
     if (cart.length === 0) {
         return (
@@ -32,9 +31,25 @@ export default function Cart() {
         );
     }
 
+    const handlePaymentSuccess = () => {
+        // Clear the entire cart after successful payment
+        clearCart();
+        toast.success('Payment successful! Cart cleared.', {
+            duration: 4000,
+            icon: '🎉',
+        });
+        // Navigate to success page
+        navigate("/payment-success", {
+            state: {
+                orderId: "ORD-" + Date.now(),
+                amount: total
+            }
+        });
+    };
+
     return (
         <div className="max-w-5xl mx-auto px-4 py-10">
-            <h1 className="text-4xl font-bold mb-10">Your Cart</h1>
+            <h1 className="text-4xl font-bold mb-10 text-gray-900">Your Cart</h1>
 
             <div className="space-y-6 mb-12">
                 {cart.map((item) => {
@@ -44,13 +59,18 @@ export default function Cart() {
                     return (
                         <div
                             key={item.id}
-                            className="flex flex-col sm:flex-row items-center gap-6 bg-white p-6 rounded-lg shadow-md"
+                            className="flex flex-col sm:flex-row items-center gap-6 bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow"
                         >
                             {/* Image */}
-                            <div className="w-32 h-32 bg-gray-100 rounded flex items-center justify-center">
-                                {/* <span className="text-gray-400">Image</span>
-                                 */}
-                                <img src={item.image} alt="" />
+                            <div className="w-32 h-32 bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                                <img
+                                    src={item.image || 'https://via.placeholder.com/128?text=No+Image'}
+                                    alt={item.name || 'Product'}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        e.target.src = 'https://via.placeholder.com/128?text=Image+Error';
+                                    }}
+                                />
                             </div>
 
                             {/* Details */}
@@ -72,11 +92,9 @@ export default function Cart() {
                                 {/* Quantity */}
                                 <div className="flex items-center gap-4">
                                     <button
-                                        onClick={() =>
-                                            updateQuantity(item.id, item.quantity - 1)
-                                        }
+                                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
                                         disabled={item.quantity <= 1}
-                                        className="w-10 h-10 bg-gray-200 rounded-full text-xl hover:bg-gray-300 disabled:opacity-50"
+                                        className="w-10 h-10 bg-gray-200 rounded-full text-xl hover:bg-gray-300 disabled:opacity-50 transition"
                                     >
                                         −
                                     </button>
@@ -86,24 +104,22 @@ export default function Cart() {
                                     </span>
 
                                     <button
-                                        onClick={() =>
-                                            updateQuantity(item.id, item.quantity + 1)
-                                        }
-                                        className="w-10 h-10 bg-gray-200 rounded-full text-xl hover:bg-gray-300"
+                                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                        className="w-10 h-10 bg-gray-200 rounded-full text-xl hover:bg-gray-300 transition"
                                     >
                                         +
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Subtotal */}
+                            {/* Subtotal & Remove */}
                             <div className="text-right min-w-[140px]">
                                 <p className="text-xl font-bold mb-3">
                                     ₹{(price * item.quantity).toFixed(2)}
                                 </p>
                                 <button
                                     onClick={() => removeFromCart(item.id)}
-                                    className="text-red-600 hover:text-red-800 font-medium"
+                                    className="text-red-600 hover:text-red-800 font-medium transition"
                                 >
                                     Remove
                                 </button>
@@ -113,28 +129,18 @@ export default function Cart() {
                 })}
             </div>
 
-            {/* Summary */}
+            {/* Summary & Checkout */}
             <div className="bg-white p-8 rounded-lg shadow-md text-right">
                 <div className="flex justify-between items-center mb-6 text-2xl">
-                    <span className="font-semibold">Total:</span>
+                    <span className="font-semibold text-gray-800">Total:</span>
                     <span className="font-bold text-green-600">
                         ₹{total.toFixed(2)}
                     </span>
                 </div>
 
-
                 <CheckoutForm
                     amount={total}
-                    onSuccess={() => {
-                        setTimeout(() => {
-                            navigate("/payment-success", {
-                                state: {
-                                    orderId: "ORD-" + Date.now(),
-                                    amount: total
-                                }
-                            });
-                        }, 300); // 🔑 allow Stripe iframe cleanup
-                    }}
+                    onSuccess={handlePaymentSuccess}  // ← Now clears cart and navigates
                 />
             </div>
         </div>
