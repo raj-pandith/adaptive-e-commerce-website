@@ -28,6 +28,9 @@ public class Product {
     @Column(name = "image") // or "url" if renamed
     private String image;
 
+    @Column(name = "description")
+    private String desc;
+
     // Constructors
     public Product() {
     }
@@ -41,6 +44,14 @@ public class Product {
     }
 
     // Getters and Setters
+    public String getDesc() {
+        return desc;
+    }
+
+    public void setDesc(String desc) {
+        this.desc = desc;
+    }
+
     public Long getId() {
         return id;
     }

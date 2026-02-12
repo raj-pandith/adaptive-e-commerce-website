@@ -7,11 +7,13 @@ import Home from './pages/Home';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
-import PaymentSuccess from './pages/PaymentSuccess';
-import AddressForm from './components/AddressForm';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import { useAuth } from './context/AuthContext';
+import PaymentSuccess from './pages/PaymentSuccess';
+import CheckoutAddress from './pages/CheckoutAddress';
+import CheckoutPayment from './pages/CheckoutPayment';
+import OrderHistory from './pages/OrderHistory';
 
 const stripePromise = loadStripe('pk_test_51SySIgLSqdiJPgAF5dhc5lDxHEHVDsy803fYwUFMv7FmEX4JBiZj7WDT2LVnckjWoEKvmJ84W1nnmSeFVZpKiP0S003IWJtsp1');
 
@@ -40,23 +42,23 @@ function App() {
 
         <Navbar />
 
-        <main className="flex-grow container mx-auto px-4 py-8">
+        <main className="grow container mx-auto px-4 py-8">
           <Routes>
-
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/payment-success" element={<PaymentSuccess />} />
 
             <Route element={<ProtectedRoute />}>
-              <Route path="/payment-success" element={<PaymentSuccess />} />
               <Route path="/products" element={<Products />} />
               <Route path="/product/:id" element={<ProductDetail />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/checkout/address" element={<AddressForm />} />
+              <Route path="/checkout/address" element={<CheckoutAddress />} />
+
+              <Route path="/checkout/payment" element={<CheckoutPayment />} />
+              <Route path="/payment-success" element={<PaymentSuccess />} />
+              <Route path="/orders" element={<OrderHistory />} />
             </Route>
-
-            <Route path="*" element={<Navigate to="/login" replace />} />
-
           </Routes>
         </main>
 

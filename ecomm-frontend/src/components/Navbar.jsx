@@ -32,6 +32,7 @@ export default function Navbar() {
                         <Link to="/products" className="text-gray-700 hover:text-indigo-600">
                             Products
                         </Link>
+                        <Link to="/orders" className="text-indigo-600 hover:underline">View Order History</Link>
 
                         {/* Cart with badge */}
                         <Link to="/cart" className="relative flex items-center text-gray-700 hover:text-indigo-600">

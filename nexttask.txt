@@ -1,0 +1,1 @@
+change the product price based on loyality point which displayed on navbar

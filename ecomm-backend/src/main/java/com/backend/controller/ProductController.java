@@ -1,17 +1,17 @@
 package com.backend.controller;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import com.backend.dto.PriceResponse;
 import com.backend.dto.ProductDTO;
 import com.backend.dto.SearchResponse;
 import com.backend.dto.SearchResultDTO;
 import com.backend.model.Product;
-import com.backend.model.User;
 import com.backend.repo.ProductRepository;
-import com.backend.repo.UserRepository;
 import com.backend.service.AiRecommendationService;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,21 +23,28 @@ import java.util.stream.Collectors;
 @RequestMapping("/api")
 public class ProductController {
 
+        private static final Logger logger = LoggerFactory.getLogger(ProductController.class);
+
         private final ProductRepository productRepository;
         private final AiRecommendationService aiService;
-        private final UserRepository userRepository;
 
-        public ProductController(ProductRepository productRepository, AiRecommendationService aiService,
-                        UserRepository userRepository) {
+        public ProductController(ProductRepository productRepository, AiRecommendationService aiService) {
                 this.productRepository = productRepository;
                 this.aiService = aiService;
-                this.userRepository = userRepository;
         }
 
+        /**
+         * Get list of products with personalized pricing based on user loyalty points
+         */
         @GetMapping("/products")
         public ResponseEntity<List<ProductDTO>> getProducts(
-                        @RequestParam(defaultValue = "1") Long userId,
-                        @RequestParam(defaultValue = "16") int limit) {
+                        @RequestParam Long userId, // Required: no default
+                        @RequestParam(defaultValue = "10") int limit) {
+
+                if (userId == null) {
+                        logger.warn("Missing userId in /products request");
+                        return ResponseEntity.badRequest().body(null);
+                }
 
                 List<Product> products = productRepository.findAll();
 
@@ -54,27 +61,27 @@ public class ProductController {
                                         dto.setSuggestedPrice(BigDecimal.valueOf(priceInfo.getSuggestedPrice()));
                                         dto.setDiscountPercent(priceInfo.getDiscountPercent());
                                         dto.setReason(priceInfo.getReason());
-                                        dto.setImage(product.getImage()); // ← this line adds the image URL
+                                        dto.setImage(product.getImage());
                                         return dto;
                                 })
                                 .collect(Collectors.toList());
 
+                logger.info("Returned {} personalized products for user {}", dtos.size(), userId);
                 return ResponseEntity.ok(dtos);
         }
 
-        // Just recommendations
-        @GetMapping("/recommendations")
-        public ResponseEntity<List<Long>> getRecommendations(
-                        @RequestParam Long userId,
-                        @RequestParam(defaultValue = "6") int limit) {
-                List<Long> recIds = aiService.getRecommendedProductIds(userId, limit);
-                return ResponseEntity.ok(recIds);
-        }
-
+        /**
+         * Get single product with personalized pricing
+         */
         @GetMapping("/products/{id}")
         public ResponseEntity<ProductDTO> getProductById(
                         @PathVariable Long id,
-                        @RequestParam(defaultValue = "1") Long userId) {
+                        @RequestParam Long userId) { // Required: no default
+
+                if (userId == null) {
+                        logger.warn("Missing userId in /products/{} request", id);
+                        return ResponseEntity.badRequest().body(null);
+                }
 
                 Product product = productRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
@@ -88,34 +95,40 @@ public class ProductController {
                                 BigDecimal.valueOf(priceInfo.getSuggestedPrice()),
                                 priceInfo.getDiscountPercent(),
                                 priceInfo.getReason(),
-                                product.getImage());
+                                product.getImage(),
+                                product.getDesc());
 
+                logger.info("Returned personalized product {} for user {}", id, userId);
                 return ResponseEntity.ok(dto);
         }
 
+        /**
+         * Get similar products with personalized pricing
+         */
         @GetMapping("/products/{id}/similar")
         public ResponseEntity<List<ProductDTO>> getSimilarProducts(
                         @PathVariable Long id,
-                        @RequestParam(defaultValue = "1") Long userId, // default user for demo
+                        @RequestParam Long userId, // Required
                         @RequestParam(defaultValue = "6") int limit) {
 
-                // Step 1: Get ordered list of similar product IDs from Python
+                if (userId == null) {
+                        logger.warn("Missing userId in /products/{}/similar request", id);
+                        return ResponseEntity.badRequest().body(null);
+                }
+
                 List<Long> orderedIds = aiService.getSimilarProductIds(id, limit);
 
                 if (orderedIds.isEmpty()) {
                         return ResponseEntity.ok(List.of());
                 }
 
-                // Step 2: Fetch products (order doesn't matter here)
                 List<Product> products = productRepository.findAllById(orderedIds);
 
-                // Step 3: Create map: product ID → Product object
                 Map<Long, Product> productMap = products.stream()
                                 .collect(Collectors.toMap(Product::getId, Function.identity()));
 
-                // Step 4: Rebuild the list in the exact order returned by Python
                 List<ProductDTO> dtos = orderedIds.stream()
-                                .filter(productMap::containsKey) // skip if product not found (rare)
+                                .filter(productMap::containsKey)
                                 .map(pid -> {
                                         Product product = productMap.get(pid);
                                         PriceResponse priceInfo = aiService.getPersonalizedPrice(userId,
@@ -127,43 +140,49 @@ public class ProductController {
                                                         product.getBasePrice(),
                                                         BigDecimal.valueOf(priceInfo.getSuggestedPrice()),
                                                         priceInfo.getDiscountPercent(),
-                                                        priceInfo.getReason(), product.getImage());
+                                                        priceInfo.getReason(),
+                                                        product.getImage(),
+                                                        product.getDesc());
                                 })
                                 .collect(Collectors.toList());
 
+                logger.info("Returned {} similar products for product {} and user {}", dtos.size(), id, userId);
                 return ResponseEntity.ok(dtos);
         }
 
+        /**
+         * Search products with semantic search + personalized pricing
+         */
         @GetMapping("/search")
         public ResponseEntity<List<SearchResultDTO>> searchProducts(
                         @RequestParam String query,
                         @RequestParam(defaultValue = "6") int limit,
-                        @RequestParam(defaultValue = "1") Long userId) {
+                        @RequestParam Long userId) { // Required
+
+                if (userId == null) {
+                        logger.warn("Missing userId in /search request");
+                        return ResponseEntity.badRequest().body(null);
+                }
 
                 if (query == null || query.trim().isEmpty()) {
                         return ResponseEntity.badRequest().body(List.of());
                 }
 
-                // Get list of similar product IDs from Python semantic search
                 List<SearchResponse.SearchResultItem> searchResults = aiService.searchProducts(query, limit);
 
                 if (searchResults.isEmpty()) {
                         return ResponseEntity.ok(List.of());
                 }
 
-                // Extract product IDs (preserving order from similarity)
                 List<Long> orderedIds = searchResults.stream()
                                 .map(SearchResponse.SearchResultItem::getProductId)
                                 .collect(Collectors.toList());
 
-                // Fetch full products from DB
                 List<Product> products = productRepository.findAllById(orderedIds);
 
-                // Map ID → Product for re-ordering
                 Map<Long, Product> productMap = products.stream()
                                 .collect(Collectors.toMap(Product::getId, Function.identity()));
 
-                // Rebuild response in Python's similarity order, with personalized prices
                 List<SearchResultDTO> result = orderedIds.stream()
                                 .filter(productMap::containsKey)
                                 .map(pid -> {
@@ -182,7 +201,7 @@ public class ProductController {
                                 })
                                 .collect(Collectors.toList());
 
+                logger.info("Search returned {} results for query '{}' and user {}", result.size(), query, userId);
                 return ResponseEntity.ok(result);
         }
-
 }
