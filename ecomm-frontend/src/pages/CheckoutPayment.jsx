@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axiosInstance from '../utils/axiosInstance'; // ← Use axiosInstance (with token)
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import CheckoutForm from '../components/CheckoutForm';
@@ -14,37 +14,51 @@ export default function CheckoutPayment() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // Use passed amount from state, fallback to cart total
+    // Prefer amount from navigation state, fallback to cart total
     const amount = Number(location.state?.amount ?? total);
 
     const handleSuccess = async () => {
+        if (!user?.id) {
+            setError('User not logged in. Please login again.');
+            return;
+        }
+
         setLoading(true);
         setError(null);
 
         try {
-            // 1. Prepare order data
+            // Prepare safe order data
             const orderData = {
-                userId: user?.id,
+                userId: user.id,
                 totalAmount: amount,
                 items: cart.map(item => ({
                     productId: item.id,
-                    name: item.name,
-                    price: item.suggestedPrice || item.originalPrice || 0,
-                    quantity: item.quantity || 1
+                    name: item.name || 'Unnamed Product',
+                    price: Number(item.suggestedPrice ?? item.originalPrice ?? 0),
+                    quantity: Number(item.quantity) || 1
                 })),
-                address: JSON.parse(localStorage.getItem("deliveryAddress") || "{}")
+                address: (() => {
+                    try {
+                        const saved = localStorage.getItem("deliveryAddress");
+                        return saved ? JSON.parse(saved) : {};
+                    } catch {
+                        return {};
+                    }
+                })()
             };
 
-            // 2. Save order to backend
-            await axios.post('http://localhost:8080/api/orders', orderData);
+            console.log('Sending order data to backend:', orderData);
 
-            // 3. Clear cart
+            // Save order using axiosInstance (includes Authorization header)
+            const response = await axiosInstance.post('/api/orders', orderData);
+
+            console.log('Order saved successfully:', response.data);
+
+            // Clear cart & temp storage
             clearCart();
-
-            // 4. Clear temp address (optional)
             localStorage.removeItem("deliveryAddress");
 
-            // 5. Go to success page
+            // Navigate to success page
             navigate('/payment-success', {
                 state: {
                     orderId: `ORD-${Date.now()}`,
@@ -53,7 +67,14 @@ export default function CheckoutPayment() {
             });
         } catch (err) {
             console.error('Order save error:', err);
-            setError('Payment succeeded but failed to save order history.');
+
+            // Show specific backend message if available
+            const backendError = err.response?.data?.message
+                || err.response?.data?.error
+                || err.message
+                || 'Failed to save order history (payment was successful)';
+
+            setError(backendError);
         } finally {
             setLoading(false);
         }
@@ -61,7 +82,7 @@ export default function CheckoutPayment() {
 
     return (
         <div className="max-w-2xl mx-auto py-12 px-4">
-            <h1 className="text-3xl font-bold mb-8 text-center">Payment</h1>
+            <h1 className="text-3xl font-bold mb-8 text-center">Complete Your Payment</h1>
 
             {error && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-center">
@@ -77,8 +98,12 @@ export default function CheckoutPayment() {
                 </p>
 
                 {loading && (
-                    <div className="text-center mb-4 text-gray-600">
-                        Saving order details...
+                    <div className="text-center mb-4 text-gray-600 flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Processing your order...
                     </div>
                 )}
 

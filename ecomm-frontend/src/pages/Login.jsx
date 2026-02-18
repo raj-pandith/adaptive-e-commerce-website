@@ -30,6 +30,13 @@ export default function Login() {
 
             login(userData, token);
 
+            // Temporary admin check — set flag in localStorage
+            if (userData.username.toLowerCase() === 'admin') {
+                localStorage.setItem('isAdmin', 'true');
+            } else {
+                localStorage.removeItem('isAdmin');
+            }
+
             // Hard refresh to load fresh state everywhere
             window.location.href = '/';
         } catch (err) {

@@ -14,27 +14,35 @@ import PaymentSuccess from './pages/PaymentSuccess';
 import CheckoutAddress from './pages/CheckoutAddress';
 import CheckoutPayment from './pages/CheckoutPayment';
 import OrderHistory from './pages/OrderHistory';
+import AdminAddProduct from './pages/admin/AdminAddProduct';
+
 
 const stripePromise = loadStripe('pk_test_51SySIgLSqdiJPgAF5dhc5lDxHEHVDsy803fYwUFMv7FmEX4JBiZj7WDT2LVnckjWoEKvmJ84W1nnmSeFVZpKiP0S003IWJtsp1');
 
+// 1. General Protected Route (for normal logged-in users)
 function ProtectedRoute() {
   const { user, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-xl">
-        Loading...
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
-  if (!user) {
+  if (!user) return <Navigate to="/login" replace />;
+
+  return <Outlet />;
+}
+
+// 2. Admin-only Protected Route (this is the one you asked for)
+function AdminProtectedRoute() {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+
+  // Check both: logged in AND role is ADMIN
+  if (!user || user.role !== 'ADMIN') {
     return <Navigate to="/login" replace />;
   }
 
   return <Outlet />;
 }
-
 function App() {
   return (
     <Elements stripe={stripePromise}>
@@ -58,8 +66,12 @@ function App() {
               <Route path="/checkout/payment" element={<CheckoutPayment />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />
               <Route path="/orders" element={<OrderHistory />} />
+              {/* <Route element={<AdminProtectedRoute />}> */}
+              <Route path="/admin/add-product" element={<AdminAddProduct />} />
+              {/* </Route> */}
             </Route>
           </Routes>
+
         </main>
 
         <footer className="bg-gray-800 text-white py-4 text-center">

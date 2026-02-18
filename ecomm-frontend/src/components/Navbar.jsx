@@ -9,6 +9,8 @@ export default function Navbar() {
     const { user, logout } = useAuth(); // user may be null if not logged in
     const navigate = useNavigate();
 
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
+
     const handleLogout = () => {
         logout();
         window.location.href = '/login'; // ← Hard refresh after logout
@@ -44,6 +46,12 @@ export default function Navbar() {
                             )}
                             <span className="ml-2">Cart</span>
                         </Link>
+
+                        {user && isAdmin && (
+                            <Link to="/admin/add-product" className="...">
+                                + Add Product
+                            </Link>
+                        )}
 
                         {/* Auth Section */}
                         {user ? (

@@ -39,6 +39,7 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('loyaltyPoints');
         localStorage.removeItem('cart'); // Clear cart too when logging out
         setUser(null);
+        localStorage.removeItem('isAdmin');
         // Optional: redirect to login
         navigate('/login');
     };

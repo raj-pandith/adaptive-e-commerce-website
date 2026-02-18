@@ -61,11 +61,33 @@ export default function CheckoutForm({ amount = 0, onSuccess }) {
                 return;
             }
 
-            if (paymentIntent?.status === 'succeeded') {
-                console.log('Payment succeeded!', paymentIntent);
-                onSuccess?.(); // Call parent success handler (clear cart, navigate, etc.)
-            } else {
-                setError('Payment processing failed');
+            if (paymentIntent.status === 'succeeded') {
+                try {
+                    const response = await axios.post(
+                        'http://localhost:8080/api/payment/complete',
+                        {
+                            userId: user.id,          // real logged-in user id
+                            amount: amount            // the actual paid amount
+                        },
+                        {
+                            headers: {
+                                Authorization: `Bearer ${localStorage.getItem('token')}` // if needed
+                            }
+                        }
+                    );
+
+                    // console.log('Points awarded:', response.data);
+                    // Example: response.data.newTotalPoints → 920
+
+                    // Optional: update user context with new points
+                    updateUser({ ...user, loyaltyPoints: response.data.newTotalPoints });
+
+                } catch (err) {
+                    console.error('Failed to award points:', err);
+                    // Don't block user - payment already succeeded
+                }
+
+                onSuccess(); // clear cart, go to success page
             }
         } catch (err) {
             console.error('Payment error:', err);

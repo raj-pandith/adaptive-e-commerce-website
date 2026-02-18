@@ -5,11 +5,13 @@ import com.backend.dto.ProductDTO;
 import com.backend.dto.SearchResponse;
 import com.backend.dto.SearchResultDTO;
 import com.backend.model.Product;
+import com.backend.model.ProductRequest;
 import com.backend.repo.ProductRepository;
 import com.backend.service.AiRecommendationService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -57,7 +59,8 @@ public class ProductController {
                                         ProductDTO dto = new ProductDTO();
                                         dto.setId(product.getId());
                                         dto.setName(product.getName());
-                                        dto.setOriginalPrice(product.getBasePrice());
+                                        dto.setOriginalPrice(product.getBasePrice() != null ? product.getBasePrice()
+                                                        : BigDecimal.ZERO);
                                         dto.setSuggestedPrice(BigDecimal.valueOf(priceInfo.getSuggestedPrice()));
                                         dto.setDiscountPercent(priceInfo.getDiscountPercent());
                                         dto.setReason(priceInfo.getReason());
@@ -153,6 +156,26 @@ public class ProductController {
         /**
          * Search products with semantic search + personalized pricing
          */
+
+        @PostMapping("/admin/products")
+        public ResponseEntity<Product> addProduct(@RequestBody ProductRequest request) {
+                // Validate admin role (using @PreAuthorize or manual check)
+
+                Product product = new Product();
+                product.setName(request.getName());
+                product.setBasePrice(request.getPrice());
+                product.setCategory(request.getCategory());
+                product.setStock(request.getStock());
+                product.setDesc(request.getDescription());
+                product.setImage(request.getImage());
+
+                Product saved = productRepository.save(product);
+
+                System.out.println("product saved .............");
+                System.out.println(saved);
+                return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        }
+
         @GetMapping("/search")
         public ResponseEntity<List<SearchResultDTO>> searchProducts(
                         @RequestParam String query,

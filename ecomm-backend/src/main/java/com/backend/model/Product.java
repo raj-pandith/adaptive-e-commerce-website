@@ -2,12 +2,14 @@ package com.backend.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 
 @Data
 @Entity
 @Table(name = "products")
+@ToString
 public class Product {
 
     @Id
@@ -30,6 +32,9 @@ public class Product {
 
     @Column(name = "description")
     private String desc;
+
+    @Column(name = "stock")
+    private Integer stock;
 
     // Constructors
     public Product() {
@@ -98,5 +103,13 @@ public class Product {
 
     public void setSalesCount(Integer salesCount) {
         this.salesCount = salesCount;
+    }
+
+    public void setStock(Integer stock) {
+        this.stock = stock;
+    }
+
+    public Integer getStock() {
+        return this.stock;
     }
 }
