@@ -3,11 +3,13 @@ import axios from 'axios';
 import ProductCard from '../components/ProductCard';
 import SearchBar from '../components/SearchBar';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const { user, loading: authLoading } = useAuth()
 
     useEffect(() => {
         // For public landing page: use a default/demo userId or no personalization

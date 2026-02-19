@@ -35,13 +35,21 @@ public class ProductController {
                 this.aiService = aiService;
         }
 
+        @GetMapping("/recommendations")
+        public ResponseEntity<List<Long>> getRecommendations(
+                        @RequestParam Long userId,
+                        @RequestParam(defaultValue = "10") int limit) {
+                List<Long> recIds = aiService.getRecommendedProductIds(userId, limit);
+                return ResponseEntity.ok(recIds);
+        }
+
         /**
          * Get list of products with personalized pricing based on user loyalty points
          */
         @GetMapping("/products")
         public ResponseEntity<List<ProductDTO>> getProducts(
                         @RequestParam Long userId, // Required: no default
-                        @RequestParam(defaultValue = "10") int limit) {
+                        @RequestParam(defaultValue = "20") int limit) {
 
                 if (userId == null) {
                         logger.warn("Missing userId in /products request");
@@ -160,15 +168,18 @@ public class ProductController {
         @PostMapping("/admin/products")
         public ResponseEntity<Product> addProduct(@RequestBody ProductRequest request) {
                 // Validate admin role (using @PreAuthorize or manual check)
+                System.out.println("Request : ------------");
+                System.out.println(request);
 
                 Product product = new Product();
                 product.setName(request.getName());
-                product.setBasePrice(request.getPrice());
+                product.setBasePrice(request.getBasePrice());
                 product.setCategory(request.getCategory());
                 product.setStock(request.getStock());
                 product.setDesc(request.getDescription());
                 product.setImage(request.getImage());
 
+                System.out.println(product);
                 Product saved = productRepository.save(product);
 
                 System.out.println("product saved .............");
@@ -227,4 +238,5 @@ public class ProductController {
                 logger.info("Search returned {} results for query '{}' and user {}", result.size(), query, userId);
                 return ResponseEntity.ok(result);
         }
+
 }

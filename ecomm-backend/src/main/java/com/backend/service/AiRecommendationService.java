@@ -3,7 +3,6 @@ package com.backend.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -29,7 +28,6 @@ public class AiRecommendationService {
     // Python FastAPI URL (change if different)
     private final String PYTHON_BASE_URL = "http://localhost:8000";
 
-    @Autowired
     public AiRecommendationService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
     }

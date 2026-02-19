@@ -11,7 +11,7 @@ import lombok.Setter;
 @Setter
 public class ProductRequest {
     private String name;
-    private BigDecimal price;
+    private BigDecimal basePrice;
     private String category;
     private Integer stock;
     private String description;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from '../components/ProductCard';
 import { useAuth } from '../context/AuthContext';
+import RecommendedProducts from './RecommendedProducts';
 
 export default function Products() {
     const { user, loading: authLoading } = useAuth();
@@ -71,8 +72,14 @@ export default function Products() {
         );
     }
 
+
+
     return (
         <div className="max-w-7xl mx-auto px-4 py-10">
+            <div>
+                <h4>Recommended Products</h4>
+                <RecommendedProducts limit={8} title="Recommended Just for You" />
+            </div>
             {/* Header */}
             <div className="mb-10">
                 <h1 className="text-4xl md:text-5xl font-bold text-gray-900">
