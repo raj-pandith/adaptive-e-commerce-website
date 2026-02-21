@@ -11,4 +11,5 @@ import com.backend.model.Product;
 public interface ProductRepository extends JpaRepository<Product, Long> {
     // You can add custom queries later if needed, e.g.:
     List<Product> findByCategory(String category);
+
 }

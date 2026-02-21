@@ -11,11 +11,16 @@ import com.backend.service.AiRecommendationService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -47,19 +52,33 @@ public class ProductController {
          * Get list of products with personalized pricing based on user loyalty points
          */
         @GetMapping("/products")
-        public ResponseEntity<List<ProductDTO>> getProducts(
-                        @RequestParam Long userId, // Required: no default
-                        @RequestParam(defaultValue = "20") int limit) {
+        public ResponseEntity<Map<String, Object>> getProducts(
+                        @RequestParam Long userId,
+                        @RequestParam(defaultValue = "12") int pageSize, // how many per page
+                        @RequestParam(defaultValue = "1") int page, // current page (1-based)
+                        @RequestParam(defaultValue = "id,asc") String sort) {
 
                 if (userId == null) {
                         logger.warn("Missing userId in /products request");
                         return ResponseEntity.badRequest().body(null);
                 }
 
-                List<Product> products = productRepository.findAll();
+                // Convert 1-based page to 0-based offset
+                int offset = (page - 1) * pageSize;
 
-                List<ProductDTO> dtos = products.stream()
-                                .limit(limit)
+                // Parse sort: e.g. "basePrice,desc" → Sort.by(DESC, "basePrice")
+                String[] sortParts = sort.split(",");
+                Sort.Direction direction = Sort.Direction.fromString(sortParts[1]);
+                Sort sortBy = Sort.by(direction, sortParts[0]);
+
+                // Pageable: page is 1-based → convert to 0-based index
+                Pageable pageable = PageRequest.of(page - 1, pageSize, sortBy);
+
+                // Fetch paginated products
+                Page<Product> productPage = productRepository.findAll(pageable);
+
+                // Convert to DTO with personalized pricing
+                List<ProductDTO> dtos = productPage.getContent().stream()
                                 .map(product -> {
                                         PriceResponse priceInfo = aiService.getPersonalizedPrice(userId,
                                                         product.getId());
@@ -73,12 +92,22 @@ public class ProductController {
                                         dto.setDiscountPercent(priceInfo.getDiscountPercent());
                                         dto.setReason(priceInfo.getReason());
                                         dto.setImage(product.getImage());
+                                        dto.setDesc(product.getDesc());
                                         return dto;
                                 })
                                 .collect(Collectors.toList());
 
-                logger.info("Returned {} personalized products for user {}", dtos.size(), userId);
-                return ResponseEntity.ok(dtos);
+                // Build structured response for frontend pagination
+                Map<String, Object> response = new HashMap<>();
+                response.put("products", dtos);
+                response.put("totalCount", productPage.getTotalElements());
+                response.put("totalPages", productPage.getTotalPages());
+                response.put("currentPage", productPage.getNumber() + 1); // return 1-based
+
+                logger.info("Returned page {} of {} ({} products) for user {}",
+                                productPage.getNumber() + 1, productPage.getTotalPages(), dtos.size(), userId);
+
+                return ResponseEntity.ok(response);
         }
 
         /**

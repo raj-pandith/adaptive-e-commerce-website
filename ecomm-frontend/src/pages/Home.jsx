@@ -1,35 +1,63 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import ProductCard from '../components/ProductCard';
 import SearchBar from '../components/SearchBar';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
-    const [products, setProducts] = useState([]);
+    const { user, loading: authLoading } = useAuth();
+
+    const [products, setProducts] = useState([]); // always array
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const { user, loading: authLoading } = useAuth()
 
     useEffect(() => {
-        // For public landing page: use a default/demo userId or no personalization
-        // Option 1: Hardcoded demo user (temporary)
-        const demoUserId = 1; // or remove ?userId= completely for non-personalized
+        // Skip fetch while auth is loading
+        if (authLoading) return;
 
-        // Option 2: No userId (backend should return default prices)
-        // axios.get('http://localhost:8080/api/products?limit=8')
+        const fetchFeaturedProducts = async () => {
+            setLoading(true);
+            setError(null);
 
-        axios.get(`http://localhost:8080/api/products?userId=${demoUserId}&limit=8`)
-            .then(res => {
-                setProducts(res.data);
+            try {
+                // Use demo user or remove userId for public page
+                const demoUserId = 1; // or null for default prices
+
+                const url = demoUserId
+                    ? `http://localhost:8080/api/products?userId=${demoUserId}&limit=8`
+                    : `http://localhost:8080/api/products?limit=8`;
+
+                const res = await axios.get(url);
+
+                const data = res.data;
+
+                // Handle different possible API shapes safely
+                let productList = [];
+
+                if (Array.isArray(data)) {
+                    productList = data;
+                } else if (data && Array.isArray(data.products)) {
+                    productList = data.products;
+                } else if (data && typeof data === 'object') {
+                    // If it's an object with products or items
+                    productList = data.products || data.items || [];
+                }
+
+                console.log('Fetched products:', productList); // ← debug
+
+                setProducts(productList);
+            } catch (err) {
+                console.error('Failed to fetch featured products:', err);
+                setError('Could not load featured products. Please try again later.');
+                setProducts([]); // prevent map crash
+            } finally {
                 setLoading(false);
-            })
-            .catch(err => {
-                console.error('Error fetching products:', err);
-                setError('Could not load featured products.');
-                setLoading(false);
-            });
-    }, []);
+            }
+        };
+
+        fetchFeaturedProducts();
+    }, [authLoading]);
 
     return (
         <div>
@@ -57,7 +85,7 @@ export default function Home() {
                 </Link>
             </div>
 
-            {/* Featured Products */}
+            {/* Featured Products Section */}
             <section className="max-w-7xl mx-auto px-4">
                 <h2 className="text-3xl font-bold mb-8 text-center">
                     Featured Products
@@ -70,12 +98,17 @@ export default function Home() {
                     </div>
                 ) : error ? (
                     <p className="text-center text-xl text-red-600">{error}</p>
-                ) : products.length === 0 ? (
-                    <p className="text-center text-xl text-gray-600">No featured products available</p>
+                ) : !Array.isArray(products) || products.length === 0 ? (
+                    <p className="text-center text-xl text-gray-600">
+                        No featured products available right now
+                    </p>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                        {products.map(product => (
-                            <ProductCard key={product.id} product={product} />
+                        {(products || []).map((product, index) => (
+                            <ProductCard
+                                key={product?.id || index} // safe key
+                                product={product}
+                            />
                         ))}
                     </div>
                 )}
